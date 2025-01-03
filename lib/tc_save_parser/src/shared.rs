@@ -25,7 +25,7 @@ impl From<std::io::Error> for Error {
 
 #[derive(Debug, Clone)]
 pub enum CircuitDataVersion {
-    V7(v7::CircuitData),
+    // V7(v7::CircuitData),
     V8(v8::CircuitData),
     Unknown(Vec<u8>),
 }
@@ -44,7 +44,7 @@ impl CircuitDataVersion {
         let data = snap::raw::Decoder::new().decompress_vec(&data).unwrap();
         let mut cursor = Cursor::new(&data);
         match version {
-            7 => Ok(Self::V7(v7::CircuitData::read(&mut cursor)?)),
+            // 7 => Ok(Self::V7(v7::CircuitData::read(&mut cursor)?)),
             8 => Ok(Self::V8(v8::CircuitData::read(&mut cursor)?)),
             _ => Ok(Self::Unknown(data)),
         }
@@ -53,7 +53,7 @@ impl CircuitDataVersion {
     #[writer(writer)]
     fn write(&self) -> BinResult<()> {
         let data = match self {
-            Self::V7(data) => data.get_bytes(),
+            // Self::V7(data) => data.get_bytes(),
             Self::V8(data) => data.get_bytes(),
             Self::Unknown(data) => data.clone(),
         };

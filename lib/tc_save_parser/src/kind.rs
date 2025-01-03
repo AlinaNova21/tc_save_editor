@@ -150,6 +150,7 @@ impl Kind {
     pub fn has_linked_components(&self) -> bool {
         match self {
             Kind::Console => true,
+            Kind::PixelScreen => true,
             Kind::RamDualLoad => true,
             Kind::RamLatency => true,
             Kind::RamFast => true,
