@@ -9,3 +9,5 @@ proc-macro = true
 [dependencies]
 binrw = "0.14.1"
 modular-bitfield = "0.11.2"
+quote = "1.0.38"
+syn = "2.0.94"

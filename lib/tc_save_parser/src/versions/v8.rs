@@ -67,17 +67,31 @@ pub struct Component {
     pub ui_order: i16,
     pub word_size: i64,
     // dummy0: i64,
-    #[bw(calc = 0)]
-    #[br(temp)]
+    #[bw(if(kind.has_linked_components()))]
+    #[br(if(kind.has_linked_components()))]
+    pub linked_components: LinkedComponents,
+    #[bw(calc = 0, if(*kind != Kind::Assembler))]
+    #[br(temp, if(kind != Kind::Assembler))]
     #[unused]
     _dummy0: u16,
     #[bw(if(kind.is_custom()))]
     #[br(if(kind.is_custom()))]
     pub custom: CustomInfo,
-    #[bw(if(kind.is_memory()))]
-    #[br(if(kind.is_memory()))]
-    pub memory: MemoryInfo,
+    #[bw(if(*kind == Kind::Assembler))]
+    #[br(if(kind == Kind::Assembler))]
+    pub assembler_info: AssemblerInfo,
 }
+
+// Hex View  00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F
+
+// 00000090                           02 00 00 00 00 00 00 00          ........
+// 000000A0  00 00 00 00 00 00 00 00  00 00 00 00 D8 FD F7 EC  ................
+// 000000B0  C8 49 E4 7A 00 00 00 00  00 00 00 00 05 00 72 65  .I.z..........re
+// 000000C0  67 20 30 01 00 07 00 73  61 6E 64 62 6F 78 17 00  g 0....sandbox..
+// 000000D0  73 61 6E 64 62 6F 78 2F  6E 65 77 5F 70 72 6F 67  sandbox/new_prog
+// 000000E0  72 61 6D 2E 61 73 6D 03  00 FC FF 15 00 00 42 F8  ram.asm.......B.
+// 000000F0  40 A8 0F 60 52 7F 00 00  00 00 00 00 00 00 00 00  @..`R...........
+// 00000100  00 00 00 00                                      ....
 
 #[binrw]
 #[br(little)]
@@ -89,7 +103,6 @@ pub struct CustomInfo {
     pub explicit_word_sizes_len: u16,
     #[br(count = explicit_word_sizes_len)]
     pub explicit_word_sizes: Vec<ExplicitWordSize>,
-    // dummy0: u16,
 }
 
 #[binrw]
@@ -115,15 +128,31 @@ pub struct WatchedComponent {
 #[br(little)]
 #[bw(little)]
 #[derive(Debug, Default, Clone)]
-pub struct MemoryInfo {
-    #[bw(try_calc(u16::try_from(selected_programs.len())))]
-    selected_programs_len: u16,
-    #[br(count = selected_programs_len)]
-    pub selected_programs: Vec<SelectedProgram>,
+pub struct AssemblerInfo {
     #[bw(try_calc(u16::try_from(watched_components.len())))]
     watched_components_len: u16,
     #[br(count = watched_components_len)]
     pub watched_components: Vec<WatchedComponent>,
+
+    #[bw(try_calc(u16::try_from(selected_programs.len())))]
+    selected_programs_len: u16,
+    #[br(count = selected_programs_len)]
+    pub selected_programs: Vec<SelectedProgram>,
+}
+
+#[binrw]
+#[br(little)]
+#[bw(little)]
+#[derive(Debug, Default, Clone)]
+pub struct LinkedComponents {
+    #[bw(try_calc(u16::try_from(linked_components.len())))]
+    linked_components_len: u16,
+    #[br(count = linked_components_len)]
+    pub linked_components: Vec<u64>,
+    #[bw(calc = 0)]
+    #[br(temp)]
+    #[unused]
+    _dummy0: u64,
 }
 
 #[binrw]

@@ -161,7 +161,29 @@ impl TCCircuitEditor {
             ui.horizontal(|ui| {
                 ui.label(format!("Kind {:?}", component.kind));
                 ui.label(format!("Pos {:?}", component.position));
-                ui.label(format!("{:?}", component));
+                ui.label(format!("Perm ID {:?}", component.permanent_id));
+                if (component.custom_string.value.len() > 0) {
+                    ui.label(format!("Custom {:?}", component.custom_string));
+                }
+                if (component.settings.len() > 0) {
+                    ui.label(format!("Settings {:?}", component.settings));
+                }
+                ui.label(format!("Word Size {:?}", component.word_size));
+                if (component.kind.is_custom()) {
+                    ui.label(format!("Custom {:?}", component.custom));
+                }
+                if (component.buffer_size > 0) {
+                    ui.label(format!("Buffer Size {:?}", component.buffer_size));
+                }
+                if (component.kind.has_linked_components()) {
+                    ui.label(format!(
+                        "Linked Components {:?}",
+                        component.linked_components
+                    ));
+                }
+                if (component.kind == Kind::Assembler) {
+                    ui.label(format!("Assembler {:?}", component.assembler_info));
+                }
             });
         }
         for wire in self.circuit.wires.iter_mut() {

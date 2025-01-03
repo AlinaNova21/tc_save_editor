@@ -8,3 +8,4 @@ binrw = "0.14.1"
 modular-bitfield = "0.11.2"
 snap = "1.1.1"
 rand = "0.8.5"
+tc_save_parser_macros = { version = "0.1.0", path = "../tc_save_parser_macros" }
