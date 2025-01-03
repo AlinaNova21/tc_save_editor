@@ -1,14 +1,9 @@
+use std::io::Cursor;
+
 use binrw::{BinRead, BinWrite, binrw, helpers::until};
+use modular_bitfield::{BitfieldSpecifier, bitfield, prelude::B5};
 
-use super::{CDString, Point, kind::Kind};
-
-// #[derive(Debug, Clone)]
-// enum SyncState {
-//     Synced = 0,
-//     Unsynced = 1,
-// }
-
-// static MEMORY_KINDS: [u16; 1] = [u16::from(Kind::Register1)];
+use crate::{CDString, Point, kind::Kind};
 
 #[binrw]
 #[br(little)]
@@ -30,13 +25,11 @@ pub struct CircuitData {
     pub description: CDString,
     pub camera_position: Point,
     pub synced: u8, // SyncState
-    dummy0: u16,
-    // dummy0: u32,
+    dummy0: u32,
     #[bw(try_calc(u16::try_from(player_data.len())))]
     player_data_len: u16,
     #[br(count = player_data_len)]
     pub player_data: Vec<u8>,
-    pub hub_description: CDString,
     #[bw(try_calc(u64::try_from(components.len() as u64)))]
     components_len: u64,
     #[br(count = components_len)]
@@ -47,13 +40,20 @@ pub struct CircuitData {
     pub wires: Vec<Wire>,
 }
 
+impl CircuitData {
+    pub fn get_bytes(&self) -> Vec<u8> {
+        let mut buf = Cursor::new(vec![0u8; 8192]);
+        self.write(&mut buf).unwrap();
+        let len = buf.position();
+        buf.into_inner()[..len as usize].to_vec()
+    }
+}
+
 #[binrw]
 #[br(little)]
 #[bw(little)]
 #[derive(Debug, Default, Clone)]
 pub struct Component {
-    // #[bw(try_calc(u16::from(kind.clone())))]
-    // #[br(map = |k:u16| Kind::from(k))]
     pub kind: Kind,
     pub position: Point,
     pub rotation: u8,
@@ -66,8 +66,11 @@ pub struct Component {
     pub buffer_size: i64,
     pub ui_order: i16,
     pub word_size: i64,
-    dummy0: i64,
-    // dummy0: u16,
+    // dummy0: i64,
+    #[bw(calc = 0)]
+    #[br(temp)]
+    #[unused]
+    _dummy0: u16,
     #[bw(if(kind.is_custom()))]
     #[br(if(kind.is_custom()))]
     pub custom: CustomInfo,
@@ -86,7 +89,7 @@ pub struct CustomInfo {
     pub explicit_word_sizes_len: u16,
     #[br(count = explicit_word_sizes_len)]
     pub explicit_word_sizes: Vec<ExplicitWordSize>,
-    dummy0: u16,
+    // dummy0: u16,
 }
 
 #[binrw]
@@ -140,6 +143,59 @@ pub struct Wire {
     pub color: u8,
     pub comment: CDString,
     pub start: Point,
-    #[br(parse_with = until(|v| *v == 0))]
-    pub segments: Vec<u8>,
+    #[br(parse_with = until(|v: &WireSegment| v.direction() == WireDirection::Right && v.length() == 0))]
+    pub segments: Vec<WireSegment>,
+}
+
+#[bitfield(bits = 8)]
+#[derive(BitfieldSpecifier, Debug, Clone, Copy, Default)]
+pub struct WireSegment {
+    pub length: B5,
+    #[bits = 3]
+    pub direction: WireDirection,
+}
+
+impl BinRead for WireSegment {
+    type Args<'a> = ();
+
+    fn read_options<R: std::io::Read + std::io::Seek>(
+        reader: &mut R,
+        _endian: binrw::Endian,
+        _args: Self::Args<'_>,
+    ) -> binrw::BinResult<Self> {
+        let mut buf = [0u8; 1];
+        reader
+            .read_exact(&mut buf)
+            .expect("Failed to read WireSegment");
+        Ok(WireSegment::from_bytes(buf))
+    }
+}
+
+impl BinWrite for WireSegment {
+    type Args<'a> = ();
+
+    fn write_options<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        _endian: binrw::Endian,
+        _args: Self::Args<'_>,
+    ) -> binrw::BinResult<()> {
+        let buf = WireSegment::into_bytes(*self);
+        writer.write_all(&buf).expect("Failed to write WireSegment");
+        Ok(())
+    }
+}
+
+#[derive(BitfieldSpecifier, Debug, Clone, Copy, PartialEq)]
+#[bits = 3]
+#[repr(u8)]
+pub enum WireDirection {
+    Right = 0,
+    DownRight,
+    Down,
+    DownLeft,
+    Left,
+    UpLeft,
+    Up,
+    UpRight,
 }

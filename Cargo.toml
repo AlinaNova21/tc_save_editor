@@ -4,13 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-binrw = "0.14.1"
 directories = "5.0.1"
 egui = "0.30.0"
-modular-bitfield = "0.11.2"
 rand = "0.8.5"
 rfd = "0.15.1"
 snap = "1.1.1"
+tc_save_parser = { version = "0.1.0", path = "lib/tc_save_parser" }
 
 [dependencies.eframe]
 version = "0.30.0"

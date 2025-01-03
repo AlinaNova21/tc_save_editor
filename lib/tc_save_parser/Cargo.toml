@@ -1,0 +1,10 @@
+[package]
+name = "tc_save_parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+binrw = "0.14.1"
+modular-bitfield = "0.11.2"
+snap = "1.1.1"
+rand = "0.8.5"

@@ -672,14 +672,13 @@ dependencies = [
 name = "circuit"
 version = "0.1.0"
 dependencies = [
- "binrw",
  "directories",
  "eframe",
  "egui",
- "modular-bitfield",
  "rand",
  "rfd",
  "snap",
+ "tc_save_parser",
 ]
 
 [[package]]
@@ -2757,6 +2756,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.93",
+]
+
+[[package]]
+name = "tc_save_parser"
+version = "0.1.0"
+dependencies = [
+ "binrw",
+ "modular-bitfield",
+ "rand",
+ "snap",
 ]
 
 [[package]]

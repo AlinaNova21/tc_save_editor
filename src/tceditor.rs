@@ -1,15 +1,13 @@
 use std::{
     fs::{self, File},
-    io::{Cursor, Read},
+    io::{Cursor, Read, Seek},
     path::PathBuf,
     ptr::write_bytes,
 };
 
-use binrw::{BinRead, BinWrite};
 use egui::{TextEdit, Ui, scroll_area};
-
-use crate::tc::{
-    CircuitDataFile, Kind, Point, new_permament_id,
+use tc_save_parser::{
+    CircuitDataFile, CircuitDataVersion, Kind, Point, new_permament_id,
     v8::{CircuitData, Component, Wire, WireDirection, WireSegment},
 };
 
@@ -121,9 +119,28 @@ pub struct TCCircuitEditor {
 
 impl TCCircuitEditor {
     pub fn new(path: &str) -> Self {
-        let mut fh = std::fs::File::open(path).unwrap();
-        let circuitfile = CircuitDataFile::read(&mut fh).unwrap();
-        let circuit = CircuitData::read(&mut std::io::Cursor::new(&circuitfile.data)).unwrap();
+        let circuitfile = match CircuitDataFile::load(&path) {
+            Ok(circuitfile) => circuitfile,
+            Err(err) => {
+                match err {
+                    tc_save_parser::Error::UnsupportedVersion(version, data) => {
+                        eprintln!("Unsupported version: {} {:?}", version, data);
+                        fs::write("uncompressed.data", data).unwrap();
+                    }
+                    tc_save_parser::Error::Binrw(err) => {
+                        let data = CircuitDataFile::debug_dump(path).unwrap();
+                        fs::write("uncompressed.data", data).unwrap();
+                        eprintln!("Error: {:?}", err)
+                    }
+                    _ => eprintln!("Error: {:?}", err),
+                }
+                std::process::exit(1);
+            }
+        };
+        let circuit = match circuitfile.circuit {
+            CircuitDataVersion::V8(circuit) => circuit,
+            _ => panic!("Unsupported version"),
+        };
         let mut s = Self {
             circuit,
             path: path.to_string(),
@@ -133,15 +150,11 @@ impl TCCircuitEditor {
     }
 
     pub fn save(&self, path: &str) {
-        let mut fh = File::options()
-            .write(true)
-            .create(true)
-            .open("decompressed.data")
-            .unwrap();
-        let mut fh = std::fs::File::create(path).unwrap();
-        let data = self.circuit.get_bytes();
-        let circuitfile = CircuitDataFile { version: 8, data };
-        circuitfile.write(&mut fh).unwrap();
+        let cdf = CircuitDataFile {
+            version: 8,
+            circuit: CircuitDataVersion::V8(self.circuit.clone()),
+        };
+        cdf.save(path).unwrap();
     }
     fn ui(&mut self, ui: &mut Ui) {
         for component in self.circuit.components.iter_mut() {
@@ -160,7 +173,7 @@ impl TCCircuitEditor {
     }
 
     fn init(&mut self) {
-        self.circuit.camera_position = Point::new(0, 0);
+        // self.circuit.camera_position = Point::new(0, 0);
         // self.circuit.components = vec![];
         // let mut comps = vec![];
         // let mut comp = Component::default();
@@ -188,7 +201,7 @@ impl TCCircuitEditor {
 
         // self.circuit.components = comps;
 
-        self.save(&self.path);
+        // self.save(&self.path);
     }
     // fn ui2(&mut self, ui: &mut Ui) {
     //     ui.heading("Turing Complete Circuit Editor");
