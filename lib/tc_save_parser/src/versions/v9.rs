@@ -70,16 +70,18 @@ pub struct Component {
     #[bw(if(kind.has_linked_components()))]
     #[br(if(kind.has_linked_components()))]
     pub linked_components: LinkedComponents,
-    #[bw(calc = 0, if(*kind != Kind::Assembler))]
-    #[br(temp, if(kind != Kind::Assembler))]
-    #[unused]
-    _dummy0: u16,
+    #[bw(try_calc(u16::try_from(watched_components.len())))]
+    watched_components_len: u16,
+    #[br(count = watched_components_len)]
+    pub watched_components: Vec<WatchedComponent>,
+    #[bw(try_calc(u16::try_from(selected_programs.len())))]
+    selected_programs_len: u16,
+    #[br(count = selected_programs_len)]
+    pub selected_programs: Vec<SelectedProgram>,
     #[bw(if(kind.is_custom()))]
     #[br(if(kind.is_custom()))]
     pub custom: CustomInfo,
-    #[bw(if(*kind == Kind::Assembler))]
-    #[br(if(kind == Kind::Assembler))]
-    pub assembler_info: AssemblerInfo,
+    // pub assembler_info: AssemblerInfo,
 }
 
 // Hex View  00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F

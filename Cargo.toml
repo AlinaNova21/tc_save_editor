@@ -4,12 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+alphanumeric-sort = "1.5.3"
 directories = "5.0.1"
 egui = "0.30.0"
 rand = "0.8.5"
 rfd = "0.15.1"
 snap = "1.1.1"
 tc_save_parser = { version = "0.1.0", path = "lib/tc_save_parser" }
+yosys-netlist-json = "0.1.0"
 
 [dependencies.eframe]
 version = "0.30.0"

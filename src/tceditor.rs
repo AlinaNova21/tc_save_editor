@@ -8,8 +8,9 @@ use std::{
 use egui::{TextEdit, Ui, scroll_area};
 use tc_save_parser::{
     CircuitDataFile, CircuitDataVersion, Kind, Point, new_permament_id,
-    v8::{CircuitData, Component, Wire, WireDirection, WireSegment},
+    v9::{CircuitData, Component, Wire, WireDirection, WireSegment},
 };
+use yosys_netlist_json::Netlist;
 
 #[derive(Default)]
 pub struct TCEditor {
@@ -35,53 +36,11 @@ impl TCEditor {
 
 impl eframe::App for TCEditor {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // if self.editors.is_empty() {
-        //     let name = "autogen";
-        //     let path = PathBuf::from(
-        //         "C:\\Users\\ashum\\AppData\\Roaming\\godot\\app_userdata\\Turing Complete\\schematics\\component_factory\\auto",
-        //     );
-        //     let path = path.join(name);
-        //     if let Ok(exists) = fs::exists(&path) {
-        //         if !exists {
-        //             fs::create_dir_all(&path).unwrap();
-        //             let mut cd = CircuitData::default();
-        //             cd.camera_position = Point::new(0, 0);
-        //             cd.custom_id = new_permament_id();
-        //             cd.components = vec![];
-        //             let gc = |pos: Point| {
-        //                 let mut comp = Component::default();
-        //                 comp.kind = Kind::On;
-        //                 comp.position = pos;
-        //                 comp.permanent_id = new_permament_id();
-        //                 comp
-        //             };
-        //             cd.components.push(gc(Point::new(0, -1)));
-        //             cd.components.push(gc(Point::new(0, 1)));
-        //             cd.wires.push(Wire {
-        //                 color: 0,
-        //                 comment: "Wire Down".into(),
-        //                 start: Point::new(1, 0),
-        //                 segments: vec![
-        //                     WireSegment::new()
-        //                         .with_direction(WireDirection::Down)
-        //                         .with_length(1),
-        //                     WireSegment::new(),
-        //                 ],
-        //             });
-        //             let mut buf = Cursor::new(vec![0u8; 8192]);
-        //             cd.write(&mut buf).unwrap();
-        //             let len = buf.position();
-        //             let fin = buf.into_inner()[..len as usize].to_vec();
-        //             let cdf = CircuitDataFile {
-        //                 version: 8,
-        //                 data: fin,
-        //             };
-        //             let mut fh = File::create(path.join("circuit.data")).unwrap();
-        //             cdf.write(&mut fh).unwrap();
-        //         }
-        //     }
-        //     self.open(path.join("circuit.data").to_str().unwrap());
-        // }
+        if self.editors.is_empty() {
+            if let Some(path) = generate() {
+                self.open(&path);
+            }
+        }
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 // file_menu_button(ui);
@@ -138,8 +97,14 @@ impl TCCircuitEditor {
             }
         };
         let circuit = match circuitfile.circuit {
-            CircuitDataVersion::V8(circuit) => circuit,
-            _ => panic!("Unsupported version"),
+            CircuitDataVersion::V9(circuit) => circuit,
+            CircuitDataVersion::Unknown(data) => {
+                fs::write("uncompressed.data", data).unwrap();
+                panic!("Unsupported version: {}", circuitfile.version)
+            }
+            _ => {
+                panic!("Unsupported version: {}", circuitfile.version)
+            }
         };
         let mut s = Self {
             circuit,
@@ -151,46 +116,58 @@ impl TCCircuitEditor {
 
     pub fn save(&self, path: &str) {
         let cdf = CircuitDataFile {
-            version: 8,
-            circuit: CircuitDataVersion::V8(self.circuit.clone()),
+            version: 9,
+            circuit: CircuitDataVersion::V9(self.circuit.clone()),
         };
         cdf.save(path).unwrap();
     }
     fn ui(&mut self, ui: &mut Ui) {
-        for component in self.circuit.components.iter_mut() {
-            ui.horizontal(|ui| {
-                ui.label(format!("Kind {:?}", component.kind));
-                ui.label(format!("Pos {:?}", component.position));
-                ui.label(format!("Perm ID {:?}", component.permanent_id));
-                if (component.custom_string.value.len() > 0) {
-                    ui.label(format!("Custom {:?}", component.custom_string));
-                }
-                if (component.settings.len() > 0) {
-                    ui.label(format!("Settings {:?}", component.settings));
-                }
-                ui.label(format!("Word Size {:?}", component.word_size));
-                if (component.kind.is_custom()) {
-                    ui.label(format!("Custom {:?}", component.custom));
-                }
-                if (component.buffer_size > 0) {
-                    ui.label(format!("Buffer Size {:?}", component.buffer_size));
-                }
-                if (component.kind.has_linked_components()) {
-                    ui.label(format!(
-                        "Linked Components {:?}",
-                        component.linked_components
-                    ));
-                }
-                if (component.kind == Kind::Assembler) {
-                    ui.label(format!("Assembler {:?}", component.assembler_info));
-                }
-            });
-        }
-        for wire in self.circuit.wires.iter_mut() {
-            ui.horizontal(|ui| {
-                ui.label(format!("{:?}", wire));
-            });
-        }
+        scroll_area::ScrollArea::vertical().show(ui, |ui| {
+            let sort_button = ui.button("Sort Components Alphabetically");
+            if sort_button.clicked() {
+                alphanumeric_sort::sort_slice_by_str_key(&mut self.circuit.components, |a| {
+                    &a.custom_string.value
+                });
+            }
+            let save_button = ui.button("Save");
+            if save_button.clicked() {
+                self.save(&self.path);
+            }
+            for component in self.circuit.components.iter_mut() {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Kind {:?}", component.kind));
+                    ui.label(format!("Pos {:?}", component.position));
+                    ui.label(format!("Perm ID {:?}", component.permanent_id));
+                    if (component.custom_string.value.len() > 0) {
+                        ui.label(format!("Custom {:?}", component.custom_string));
+                    }
+                    if (component.settings.len() > 0) {
+                        ui.label(format!("Settings {:?}", component.settings));
+                    }
+                    ui.label(format!("Word Size {:?}", component.word_size));
+                    if (component.kind.is_custom()) {
+                        ui.label(format!("Custom {:?}", component.custom));
+                    }
+                    if (component.buffer_size > 0) {
+                        ui.label(format!("Buffer Size {:?}", component.buffer_size));
+                    }
+                    if (component.kind.has_linked_components()) {
+                        ui.label(format!(
+                            "Linked Components {:?}",
+                            component.linked_components
+                        ));
+                    }
+                });
+                // if (component.kind == Kind::Assembler) {
+                //     ui.label(format!("  Assembler {:?}", component.watched_components));
+                // }
+            }
+            for wire in self.circuit.wires.iter_mut() {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{:?}", wire));
+                });
+            }
+        });
         //self.circuit.wires
     }
 
@@ -222,39 +199,99 @@ impl TCCircuitEditor {
         // });
 
         // self.circuit.components = comps;
+        // let id = self.circuit.components[3].permanent_id;
+        // // self.circuit.components[0]
+        // //     .linked_components
+        // //     .linked_components[0] = id;
+        // self.circuit.components[0]
+        //     .linked_components
+        //     .linked_components = vec![id];
 
         // self.save(&self.path);
+        // let mut circuit = CircuitData::default();
+        // circuit.custom_id = new_permament_id();
+
+        // let mut fh = File::open("input.json").unwrap();
+        // let nl = Netlist::from_reader(&mut fh).unwrap();
+        // let module = nl.modules.get("ibex_load_store_unit").unwrap();
+
+        // for (name, port) in &module.ports {
+        //     let mut comp = Component::default();
+        //     comp.kind = Kind::On;
+        //     comp.position = Point::new(0, 0);
+        //     comp.permanent_id = new_permament_id();
+        //     comp.custom_string = name.clone().into();
+        //     circuit.components.push(comp);
+        // }
     }
-    // fn ui2(&mut self, ui: &mut Ui) {
-    //     ui.heading("Turing Complete Circuit Editor");
-    //     ui.label(format!("Path: {}", &self.path));
-    //     ui.separator();
-    //     ui.label("Components:");
-    //     scroll_area::ScrollArea::vertical().show(ui, |ui| {
-    //         for component in self.circuit.components.iter_mut() {
-    //             ui.label(format!(
-    //                 "Kind: {:?} ({:?})",
-    //                 component.kind,
-    //                 Kind::from(component.kind)
-    //             ));
-    //             ui.label(format!("Position: {:?}", component.position));
-    //             ui.horizontal(|ui| {
-    //                 ui.label(format!("Word Size: "));
-    //                 let mut str = component.word_size.to_string();
-    //                 let resp = ui.add(TextEdit::singleline(&mut str));
-    //                 if resp.changed() {
-    //                     let num = str.parse();
-    //                     match num {
-    //                         Ok(num) => {
-    //                             component.word_size = num;
-    //                         }
-    //                         Err(_) => {
-    //                             component.word_size = i64::MIN;
-    //                         }
-    //                     }
-    //                 }
-    //             });
+}
+
+fn generate() -> Option<String> {
+    None
+    // let inputs = [
+    //     "lsu_req",
+    //     "data_pmp_err",
+    //     "lsu_we",
+    //     "data_gnt",
+    //     "split_misaligned_access",
+    // ];
+    // let outputs = [
+    //     "data_req",
+    //     "pmp_err",
+    //     "perf_load",
+    //     "perf_store",
+    //     "ctrl_update",
+    //     "addr_update",
+    //     "handle_misaligned",
+    //     "lsm_fsm",
+    // ];
+    // let name = "autogen";
+    // let path = PathBuf::from(
+    //     "C:\\Users\\ashum\\AppData\\Roaming\\godot\\app_userdata\\Turing Complete\\schematics\\component_factory\\auto",
+    // );
+    // let path = path.join(name);
+    // if let Ok(exists) = fs::exists(&path) {
+    //     // if !exists || true {
+    //     if true {
+    //         fs::create_dir_all(&path).unwrap();
+    //         let mut cd = CircuitData::default();
+    //         cd.camera_position = Point::new(0, 0);
+    //         cd.custom_id = new_permament_id();
+    //         cd.components = vec![];
+    //         let gen_input = |name: &str, pos: Point| {
+    //             let mut comp = Component::default();
+    //             comp.kind = Kind::CcInput;
+    //             comp.position = pos;
+    //             comp.permanent_id = new_permament_id();
+    //             comp.custom_string = name.into();
+    //             comp.word_size = i64::MIN;
+    //             comp
+    //         };
+    //         let gen_output = |name: &str, pos: Point| {
+    //             let mut comp = Component::default();
+    //             comp.kind = Kind::CcOutput;
+    //             comp.position = pos;
+    //             comp.permanent_id = new_permament_id();
+    //             comp.custom_string = name.into();
+    //             comp
+    //         };
+
+    //         for (i, name) in inputs.iter().enumerate() {
+    //             let comp = gen_input(name, Point::new(0, (i as i16) * 8));
+    //             cd.components.push(comp);
     //         }
-    //     });
+    //         for (i, name) in outputs.iter().enumerate() {
+    //             let comp = gen_output(name, Point::new(24, (i as i16) * 8));
+    //             cd.components.push(comp);
+    //         }
+
+    //         let cdf = CircuitDataFile {
+    //             version: 8,
+    //             circuit: CircuitDataVersion::V8(cd),
+    //         };
+    //         let path = path.join("circuit.data");
+    //         cdf.save(path.to_str().unwrap()).unwrap();
+    //     }
     // }
+    // Some(path.join("circuit.data").to_str().unwrap().to_string())
 }

@@ -2,7 +2,7 @@ use std::io::{Cursor, Read, Seek};
 
 use binrw::{BinRead, BinResult, BinWrite, binrw, parser, writer};
 
-use crate::{v7, v8};
+use crate::{v7, v8, v9};
 
 #[derive(Debug)]
 pub enum Error {
@@ -27,12 +27,13 @@ impl From<std::io::Error> for Error {
 pub enum CircuitDataVersion {
     // V7(v7::CircuitData),
     V8(v8::CircuitData),
+    V9(v9::CircuitData),
     Unknown(Vec<u8>),
 }
 
 impl Default for CircuitDataVersion {
     fn default() -> Self {
-        self::CircuitDataVersion::V8(v8::CircuitData::default())
+        self::CircuitDataVersion::V9(v9::CircuitData::default())
     }
 }
 
@@ -46,6 +47,7 @@ impl CircuitDataVersion {
         match version {
             // 7 => Ok(Self::V7(v7::CircuitData::read(&mut cursor)?)),
             8 => Ok(Self::V8(v8::CircuitData::read(&mut cursor)?)),
+            9 => Ok(Self::V9(v9::CircuitData::read(&mut cursor)?)),
             _ => Ok(Self::Unknown(data)),
         }
     }
@@ -55,6 +57,7 @@ impl CircuitDataVersion {
         let data = match self {
             // Self::V7(data) => data.get_bytes(),
             Self::V8(data) => data.get_bytes(),
+            Self::V9(data) => data.get_bytes(),
             Self::Unknown(data) => data.clone(),
         };
         let data = snap::raw::Encoder::new().compress_vec(&data).unwrap();
@@ -130,6 +133,6 @@ impl Point {
     }
 }
 
-pub fn new_permament_id() -> i64 {
+pub fn new_permament_id() -> u64 {
     rand::random()
 }
